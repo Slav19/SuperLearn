@@ -97,11 +97,9 @@ The age variable contains `r sum(is.na(titanic$age))` missing records. It is rel
 
 2. The age variable is excluded from the model. This model will contain more records. However, the age variable may be important predictor. As a result, omitting this variable would also decrease the quality of analysis.
 
-This report is based on the first model. 
+I started my analysis from the first model which is more general. As for other predictors, keeping the age predictor will be analysed during finding the best set of predictors for logistic regression.
 
 Two missing embarkedvalues records won't impact on the model.
-
-For logistic regression, the transformation log(x + 1) was applied to the sibsp and parch variables. In order to find the optimal set of predictors and reduce possible overfitting, I used the backward stepwise logistic regtression. Starting from the full model, I reduced each single predictor and select the current best model having minimum value of AIC. The itertation process of removing a single variable continues until the full model at current iteration is the best.
 
 ```{r stepwise, echo = FALSE}
 
@@ -139,30 +137,65 @@ varSet <- compTable$rmVar[-1]
 
 ```
 
-For applying each classification method, the dataset was randomly split on training set (80% of observations) which was used for creating a predictor, and on testing set (20% of observations) which was used for quality evaluation of the predictor. The predictor was applied on the testing set, and the predicted outcomes were compared with actual outcomes in the testing set. 
+For logistic regression, the transformation log(x + 1) was applied to the sibsp and parch variables. In order to find the optimal set of predictors and reduce possible overfitting, I used the backward stepwise logistic regtression. Starting from the full model, I reduced each single predictor and select the current best model having minimum value of AIC. The itertation process of removing a single variable continues until the full model at current iteration is the best. As a result, the model with full set of predictors having AIC = `r AICfull` was improved by reduced model with `r length(varSet)` predictors: `r varSet ` having AIC = `r round(AICred, 1)`. The age predictor remained in the model.
+
+## Classification methods
+
+The current version of report considers the following classification methods:
+
+- Logistic regression
+- CART
+- Random forest
+
+For applying each classification method, the dataset was randomly split on training set (80% of observations) which was used for creating a predictor, and on testing set (20% of observations) which was used for quality evaluation of the predictor. The predictors were applied on the testing set, and the predicted outcomes were compared with actual outcomes in the testing set. 
 
 All classification methods are based on assumption that both of the possible misclassification errors have equal importance.
 
-```{r logistic regression, echo = FALSE}
+```{r init classification, echo = FALSE}
 
 titanicLogres <- titanic %>% dplyr::select(c("survived", varSet))
 set.seed(127)
 
-trRows1 <- createDataPartition(titanicLogres$survived, p = 0.8, list = F)
-trData1 <- titanicLogres[trRows1, ]
-tstData1 <- titanicLogres[-trRows1, ]
+trRows <- createDataPartition(titanicLogres$survived, p = 0.8, list = F)
+trData <- titanicLogres[trRows, ]
+tstData <- titanicLogres[-trRows, ]
 
-glm1 <- glm(survived ~ ., data = trData1, family = binomial(link = "logit"), na.action = na.exclude)
-logPred1 <- predict(glm1, tstData1, type = "response")
-logPred1 <- ifelse(logPred1 > 0.5, 1, 0)
-confTab1 <- table(logPred1, tstData1$survived)
-corClass <- round(sum(diag(confTab1)) / sum(confTab1), 2)
+```
+
+```{r logistic regression, echo = FALSE}
+
+glm <- glm(survived ~ ., data = trData, family = binomial(link = "logit"), na.action = na.exclude)
+predLogreg <- predict(glm, tstData, type = "response")
+predLogreg <- ifelse(predLogreg  > 0.5, 1, 0)
+confTabLogreg <- table(predLogreg, as.integer(tstData$survived))
+
+corClassLogreg <- round(c(sum(diag(confTabLogreg)) / sum(confTabLogreg), confTabLogreg[1, 1] / sum(confTabLogreg[1, ]), confTabLogreg[2, 2] / sum(confTabLogreg[2, ])), 2)               
+
+misRows <- which(is.na(predLogreg))
+if(length(misRows) > 0)
+{
+  predLogreg <- predLogreg[-misRows]
+  tstNomis <- tstData$survived[-misRows]
+}  
+
+ROClogreg <- prediction(predLogreg, tstNomis)
+perfROCplotLogreg <- performance(ROClogreg, "tpr", "fpr")
+
+perfROCLogreg <- performance(ROClogreg, "auc")
+accurRFLogreg <- round(perfROCLogreg@y.values[[1]], 2)
 
 ```
 
 ### Logistic regression
 
-The logistic regression can be directly applied for classification because the model contains only 2 outcomes. The optimal model obtained below contains `r length(varSet)` predictors: `r varSet`. The correct prediction obtained from this method is `r corClass`.
+The logistic regression can be directly applied for classification because the model contains only 2 outcomes. The optimal model obtained below contains `r length(varSet)` predictors: `r varSet`. The total correct prediction obtained from this method is `r corClassLogreg[1]`, whereas the correct predictions of survived = 0 and survived = 1 are `r corClassLogreg[2]` and `r corClassLogreg[3]`. The next plot shows the ROC curve for the random forest predictor. The area under curve is `r accurRFLogreg`.
+
+``` {r ROC LogregPlot, echo = FALSE}
+
+plot(perfROCplotLogreg)
+abline(a = 0, b = 1)
+
+```
 
 ```{r classification tree, echo = FALSE}
 
@@ -227,13 +260,13 @@ trPlotPr <- fancyRpartPlot(treePrunedlot, caption = NULL, cex = 0.8, type = 5)
 
 ```{r random forest, echo = FALSE}
 
-fitForest <- randomForest(survived ~ ., data = trData1, importance = TRUE, na.action = na.omit)
+fitForest <- randomForest(survived ~ ., data = trData, importance = TRUE, na.action = na.omit)
 ntrees <- which.min(fitForest$err.rate[, 1])
-fitForest <- randomForest(survived ~ ., data = trData1, importance = TRUE, ntree = ntrees, na.action = na.exclude)
-predForest <- predict(fitForest, tstData1, type = "class")
+fitForest <- randomForest(survived ~ ., data = trData, importance = TRUE, ntree = ntrees, na.action = na.exclude)
+predForest <- predict(fitForest, tstData, type = "class")
 confMatrRf <- confusionMatrix(predForest, tstData1$survived)
 
-predForest <- predict(fitForest, tstData1, type = "prob")
+predForest <- predict(fitForest, tstData, type = "prob")
 misRows <- which(is.na(predForest[, 2]))
 if(length(misRows) > 0)
 {
@@ -254,7 +287,7 @@ The correct prediction obtained from this method is `r round(confMatrRf$overall[
 
 The next plot shows the ROC curve for the random forest predictor. The area under curve is `r accurRF`
 
-``` {r ROC plot, echo = FALSE}
+``` {r ROC RF plot, echo = FALSE}
 
 plot(perfROCplot)
 abline(a = 0, b = 1)
