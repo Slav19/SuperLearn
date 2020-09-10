@@ -33,24 +33,34 @@ titanic <- read_csv("data/titanic3.csv")
 misRows <- apply(!is.na(titanic), 1, sum)
 titanic <- titanic %>% filter(misRows != 0) %>% as_tibble %>% 
     dplyr::select(-c("name", "ticket", "boat", "body", "home.dest")) %>% 
-    mutate(cabinFirstLetter = str_sub(cabin, end = 1)) %>% dplyr::select(-cabin) %>% 
-    mutate_at(c("age", "sibsp", "parch"), as.integer) %>% 
-    mutate_at(c("survived", "pclass", "sex", "cabinFirstLetter", "embarked"), as.factor)
+    mutate(cabinFirstLetter = str_sub(cabin, end = 1)) %>% dplyr::select(-cabin)
 
-tab1 <- colSums(is.na(titanic))
+
+tab1 <- as.tibble(colSums(is.na(titanic)))
 tab2 <- count(titanic, pclass, cabinFirstLetter)
 tab3 <- count(titanic %>% filter(pclass == 1), pclass, cabinFirstLetter, survived)
 
 fare0 <- sum(titanic$fare < 0.01, na.rm = T)
 
-titanic <- titanic %>% dplyr::select(-cabinFirstLetter) %>% 
-      mutate(fare = ifelse(is.na(fare), 0.0, fare)) # correct 1 record for further imputation
+titanic <- titanic %>% 
+  mutate(pclassCab = case_when(pclass %in% c(2, 3) ~ as.character(pclass),
+                              is.na(cabinFirstLetter) |  cabinFirstLetter %in% c("A", "T") ~ paste(pclass, "Other", sep = ""),
+                              TRUE                                        ~ "pclassBCDE")) %>% 
+  dplyr::select(-cabinFirstLetter) %>% 
+  mutate(fare = ifelse(is.na(fare), 0.0, fare)) # correct 1 record for further imputation
+
 fareClass <- titanic %>% filter(fare > 0) %>% group_by(pclass) %>% summarize(fare123 = median(fare))
 titanic <- titanic %>% inner_join(fareClass) %>% 
   mutate(fare = ifelse(fare < 0.01, fare123, fare)) %>% dplyr::select(-fare123) %>% 
   mutate(fare = log(fare))
 
+titanic <- titanic %>%mutate_at(c("age", "sibsp", "parch"), as.integer) %>% 
+  mutate_at(c("survived", "pclass", "sex", "pclassCab", "embarked"), as.factor)
+
 nSurv <- round(100 * sum(titanic$survived == 1) / nrow(titanic), 2)
+
+cortab <- as.tibble(cor(titanic %>% dplyr::select(age, sibsp, parch, fare), method="pearson", use="pairwise.complete.obs")) %>% mutate_all(function(x) { ifelse(x == 1.0, 0, x)})
+maxCorr <- round(max(abs(cortab)), 2)
 
 ```
 
@@ -60,13 +70,13 @@ This report contains results of applying various supervised learning methods to 
 
 The original titanic dataset contains `r nrow(titanic)` observations and `r ncol(titanic)` columns. One record without non-missing values was removed. The survived binary variable (0 - not survived; `r 100 - nSurv`% observations, and 1 - survived; `r nSurv`% observations) is used as an outcome for all models, whereas other variables can be considered as candidates for predictors. The name, ticket, boat, body, home.dest variables shouldn't have impact on the surviving a person, and were permanently removed from the analysis. 
 
-The cabin variable is replaced by cabinFirstLetter variable consisting of the first letter of the cabin.
+The cabin variable is replaced by cabinFirstLetter variable consisting of the first letter of the cabin. This letter can contain additional information about class or location of a cabin.
 
 Table 1 shows number of missing values in the dataset.
 
 ```{r tab1, echo = FALSE}
 
-knitr::kable(tab1, caption = "Table 1. counts of missing values") %>% kable_styling(bootstrap_options = c("striped", "hover"))
+knitr::kable(tab1, caption = "Table 1. Counts of missing values") %>% kable_styling(bootstrap_options = c("striped", "hover"))
 
 ```
 
@@ -86,12 +96,12 @@ knitr::kable(tab3, caption = "Table 3.  Counts of pclass = 1, cabin and survived
 
 ```
 
-The pclass = 1 can be split onto 2 levels: one belonging to the cabin values equal to B, C, D and  E (where the number of survived persons is much higher than the number of non-survived persons), and another one belonging to the missing cabin values, E and T (where the counts of both survived groups are close each other).
-The possible split of pclass = A will be analysed in the next version of report.
+The pclass = 1 can be split onto 2 levels: one belonging to the cabin values equal to B, C, D and  E (where the number of survived persons is much higher than the number of non-survived persons), and another one belonging to the missing cabin values, E and T (where the counts of both survived groups are close each other). In addition to the pclass predictor, I added the modified cabinFirstLetter variable to the possible list of predictors. At least one of them shouls be removed at stepwise step.
+
 
 The fare variable contains `r fare0` zero records which were considered as incorrect and one missing record. I imputed them using the average fare for corresponding pclass. Also, logarithmic transformation was applied to the fare variable. This transformation could not affect on tree methods, but could improve the logistic regression.
 
-The age variable contains `r sum(is.na(titanic$age))` missing records. It is relatively large number, and imputation of these missing values is outside of this report. The following two models can be considered:
+The age variable contains `r sum(is.na(titanic$age))` missing records. It is relatively large number, and imputation of these missing values were not part of this report. The following two models can be considered:
 
 1. Model containing the age variable. Some models won't consider the missing records, that cause to lower number of observations, and, as a result, reduced quality of the analysis.
 
@@ -100,6 +110,8 @@ The age variable contains `r sum(is.na(titanic$age))` missing records. It is rel
 I started my analysis from the first model which is more general. As for other predictors, keeping the age predictor will be analysed during finding the best set of predictors for logistic regression.
 
 Two missing embarkedvalues records won't impact on the model.
+
+The numerical predictors aren't highly correlated. Their maximum pairwise correlation coefficient is `r maxCorr`. However, multicollinearity in the model can exist.
 
 ```{r stepwise, echo = FALSE}
 
@@ -137,15 +149,18 @@ varSet <- compTable$rmVar[-1]
 
 ```
 
-For logistic regression, the transformation log(x + 1) was applied to the sibsp and parch variables. In order to find the optimal set of predictors and reduce possible overfitting, I used the backward stepwise logistic regtression. Starting from the full model, I reduced each single predictor and select the current best model having minimum value of AIC. The itertation process of removing a single variable continues until the full model at current iteration is the best. As a result, the model with full set of predictors having AIC = `r AICfull` was improved by reduced model with `r length(varSet)` predictors: `r varSet ` having AIC = `r round(AICred, 1)`. The age predictor remained in the model.
+For logistic regression, the transformation log(x + 1) was applied to the sibsp and parch variables. In order to find the optimal set of predictors and reduce possible overfitting, I used the stepwise logistic regtression. Due to low number of possible predictors, the full model run very fast, and the backward approach was selected. Starting from the full model, I reduced each single predictor and select the current best model based on an  information criteria. 
+
+Coefficients of the logistic regression correspond to maximum vlaue of likelihood function. Then, a low value of residual deviance which is proportional to negative log-likelihood value corresponds to a good fit. However, adding more predictors will always improve a fit. Then, larger number of predictors should be penalized. The Akaike information criteria (AIC) is the sum of the residual deviance and the double number of predictors. As a result, adding predictors which do not significantly improve the fit can make the model worse. For a single iteration of the backward stepwise regression, a predictor is selected to be removed when the corresponding model has the lowest AIC value. The itertation process of removing a single variable continues until the full model at current iteration is the best. In other words, further omitting of any predictor increases the AIC.
+
+As a result, the model with full set of predictors having AIC = `r AICfull` was improved by reduced model with `r length(varSet)` predictors: `r varSet ` having AIC = `r round(AICred, 1)`. The age predictor remained in the model. Then, the best model contains the age predictor and has reduced number of observations. Also, the artificial cabinFirstLetter predictor was omitted.
 
 ## Classification methods
 
 The current version of report considers the following classification methods:
 
 - Logistic regression
-- CART
-- Random forest
+
 
 For applying each classification method, the dataset was randomly split on training set (80% of observations) which was used for creating a predictor, and on testing set (20% of observations) which was used for quality evaluation of the predictor. The predictors were applied on the testing set, and the predicted outcomes were compared with actual outcomes in the testing set. 
 
@@ -164,31 +179,50 @@ tstData <- titanicLogres[-trRows, ]
 
 ```{r logistic regression, echo = FALSE}
 
-glm <- glm(survived ~ ., data = trData, family = binomial(link = "logit"), na.action = na.exclude)
-predLogreg <- predict(glm, tstData, type = "response")
-predLogreg <- ifelse(predLogreg  > 0.5, 1, 0)
-confTabLogreg <- table(predLogreg, as.integer(tstData$survived))
+  glmFit <- glm(survived ~ ., data = trData, family = binomial(link = "logit"), na.action = na.exclude)
+  trLogreg <- predict(glmFit, trData, type = "response")
+  trLogreg <- ifelse(trLogreg  > 0.5, 1, 0)
+  confTabTrLogreg <- table(trLogreg, as.integer(trData$survived))
+  trAccur <- round(sum(diag(confTabTrLogreg)) / sum(confTabTrLogreg), 2)
+  
+  predLogreg <- predict(glmFit, tstData, type = "response")
+  predLogreg <- ifelse(predLogreg  > 0.5, 1, 0)
+  confTabLogreg <- table(predLogreg, as.integer(tstData$survived))  
+  misRows <- which(is.na(predLogreg))
+  if(length(misRows) > 0)
+  {
+    predLogreg <- predLogreg[-misRows]
+    tstNomis <- tstData$survived[-misRows]
+  }  
 
-corClassLogreg <- round(c(sum(diag(confTabLogreg)) / sum(confTabLogreg), confTabLogreg[1, 1] / sum(confTabLogreg[1, ]), confTabLogreg[2, 2] / sum(confTabLogreg[2, ])), 2)               
+  ROClogreg <- prediction(predLogreg, tstNomis)
+  perfROCplotLogreg <- performance(ROClogreg, "tpr", "fpr")
 
-misRows <- which(is.na(predLogreg))
-if(length(misRows) > 0)
-{
-  predLogreg <- predLogreg[-misRows]
-  tstNomis <- tstData$survived[-misRows]
-}  
+  perfROCLogreg <- performance(ROClogreg, "auc")
+  accurRFLogreg <- perfROCLogreg@y.values[[1]]
+  tstAccur <- round(sum(diag(confTabLogreg)) / sum(confTabLogreg), 2)
+  
+nullDev <- round(summary(glmFit)$null.deviance, 2)
+resDev <- round(summary(glmFit)$deviance, 2) 
+nullDf <- summary(glmFit)$df.null
+resDf <- summary(glmFit)$df.residual
+# pchisq(nullDev - resDev, df = nullDf- resDf, lower.tail = F)
 
 ROClogreg <- prediction(predLogreg, tstNomis)
 perfROCplotLogreg <- performance(ROClogreg, "tpr", "fpr")
 
 perfROCLogreg <- performance(ROClogreg, "auc")
-accurRFLogreg <- round(perfROCLogreg@y.values[[1]], 2)
+accurROCLogreg <- round(perfROCLogreg@y.values[[1]], 2)
 
 ```
 
 ### Logistic regression
 
-The logistic regression can be directly applied for classification because the model contains only 2 outcomes. The optimal model obtained below contains `r length(varSet)` predictors: `r varSet`. The total correct prediction obtained from this method is `r corClassLogreg[1]`, whereas the correct predictions of survived = 0 and survived = 1 are `r corClassLogreg[2]` and `r corClassLogreg[3]`. The next plot shows the ROC curve for the random forest predictor. The area under curve is `r accurRFLogreg`.
+The logistic regression can be directly applied for classification because the model contains only 2 outcomes. The optimal model obtained below contains `r length(varSet)` predictors: `r varSet`. The overall ratio of the testing correct prediction obtained from this method is `r tstAccur`, whereas the corresponding ratio of the training prediction is `r trAccur`. If such ratio of the training set is much higher than one for the testing set, it could indicate to overfitting. However, in our case the ratio of the testing correct prediction is even higher.
+
+Two values indicating the fit quality of logistic regression are the null deviance corresponding to the model without predictors (the worse model) and the residual deviance corresponding to the model outlined above. Higher difference between these values (the first one is always larger due to presence of predictors) shows better fit. 
+
+The next plot shows the ROC curve for the random forest predictor. The area under curve is `r accurROCLogreg`.
 
 ``` {r ROC LogregPlot, echo = FALSE}
 
@@ -196,116 +230,3 @@ plot(perfROCplotLogreg)
 abline(a = 0, b = 1)
 
 ```
-
-```{r classification tree, echo = FALSE}
-
-set.seed(127)
-  trRows1 <- createDataPartition(titanic$survived, p = 0.8, list = F)
-  trData1 <- titanic[trRows1, ]
-  tstData1 <- titanic[-trRows1, ]
-  fitPr1 <- rpart(survived ~., data = trData1, method = 'class', 
-                 control = rpart.control(cp = 0.0001), na.action = na.exclude)
-  minCPr1 <- fitPr1$cptable[which.min(fitPr1$cptable[, "xerror"]), "CP"]
-  tree1PrunedPr <- prune(fitPr1, cp = minCPr1)
-  curResPr1 <- table(predict(tree1PrunedPr, tstData1, type = 'class'), tstData1$survived)
-
-curResPr1 <- table(tstData1$survived, predict(tree1PrunedPr, tstData1, type = 'class'))
-survPred1 <- predict(tree1PrunedPr, tstData1, type = "class")
-confMatr <- confusionMatrix(survPred1, as.factor(tstData1$survived))
-
-varImp <- data.frame(imp = fitPr1$variable.importance)
-dfImp <- tibble(variable = row.names(varImp), Importance = varImp$imp) %>% arrange(Importance)
-
-imptPlot <- ggplot(dfImp) +
-  geom_segment(aes(x = reorder(variable, Importance), y = 0, xend = variable, yend = Importance), 
-               size = 1.5, alpha = 0.7) +
-  geom_point(aes(x = variable, y = Importance, col = variable), 
-             size = 4, show.legend = F) +
-  coord_flip() +
-  xlab("Survived predictors") + ylab("Importance of predictors in CART") + 
-  theme_bw()
-
-treePrunedlot <- prune(fitPr1, cp = 0.005)
-
-accurCart <- round(confMatr$overall[["Accuracy"]], 2)
-
-```
-
-### Classification tree
-
-The correct prediction obtained from this method is `r accurCart`.
-
-The plot below shows the importance of survived predictors in the CART model. Some of predictors with very low importance may not appear in the plot, and their levels can't be efficiently used for prediction of surviving. Predictors with low importance are used at the late stages of the tree split where improving of prediction is not significant.
-
-```{r importance plot, echo = FALSE}
-
-print(imptPlot)
-
-```
-
-The next plot outlines the classification tree. Each split node contains a column name. On the left and right sides there are one or more levels of this column. They define the binary split which is the classification rule on current hierarchy. The colored nodes at the bottom of the tree represent the final outcome of the classification. For example, the splits for the last right node are following:
-
-If sex = female; and:
-
-PCclass = 1; then:
-
-the prediction is the survived = 1 with probability 0.93. There are 23% of all records described by this node and satisfying conditions of these splits.
-
-
-```{r tree plot, echo = FALSE}
-
-trPlotPr <- fancyRpartPlot(treePrunedlot, caption = NULL, cex = 0.8, type = 5)
-
-```
-
-```{r random forest, echo = FALSE}
-
-fitForest <- randomForest(survived ~ ., data = trData, importance = TRUE, na.action = na.omit)
-ntrees <- which.min(fitForest$err.rate[, 1])
-fitForest <- randomForest(survived ~ ., data = trData, importance = TRUE, ntree = ntrees, na.action = na.exclude)
-predForest <- predict(fitForest, tstData, type = "class")
-confMatrRf <- confusionMatrix(predForest, tstData1$survived)
-
-predForest <- predict(fitForest, tstData, type = "prob")
-misRows <- which(is.na(predForest[, 2]))
-if(length(misRows) > 0)
-{
-  predForest <- predForest[-misRows, ]
-  tstNomis <- tstData1$survived[-misRows]
-}  
-predROC <- prediction(predForest[, 2], tstNomis)
-perfROCplot <- performance(predROC, "tpr", "fpr")
-
-perfROC <- performance(predROC, "auc")
-accurRF <- round(perfROC@y.values[[1]], 2)
-
-```
-
-### Random forest
-
-The correct prediction obtained from this method is `r round(confMatrRf$overall[["Accuracy"]], 2)`. Another evaluation of performance of the random forest predictor was obtained using a receiver operating characteristic curve (ROC). It outlines true positive and false positive rates. The point (0, 1) corresponds to the best possible prediction of true positives and an absence of false positives. The area under the corresponding curve will be equal to one. A real curve will be below an ideal curve, and an area below it describes a quality of the prediction.
-
-The next plot shows the ROC curve for the random forest predictor. The area under curve is `r accurRF`
-
-``` {r ROC RF plot, echo = FALSE}
-
-plot(perfROCplot)
-abline(a = 0, b = 1)
-
-```
-
-### Conclusions and further work
-
-All 3 classification methods (logistic regression, CART, random forest) show over 80% of correct prediction rate. The next report will include the following additions:
-
-1. Applying another methods, such as adaboost.
-2. Possible imputation of missing records for improving the predictors.
-3. Sensitivity analysis. Results of all classification methods depend on random split of the dataset onto training and testing sets. I will rerun all methods for various splits and check how they impact on correct prediction rate.
-
-Also, I will add description of all methods and provide more generic code.
-
-
-
-
-
-
