@@ -12,7 +12,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 
 library(tidyverse)
-
+library(glmnet)
 library(rpart)
 library(rpart.plot)
 library(RColorBrewer)
@@ -36,7 +36,7 @@ titanic <- titanic %>% filter(misRows != 0) %>% as_tibble %>%
     mutate(cabinFirstLetter = str_sub(cabin, end = 1)) %>% dplyr::select(-cabin)
 
 
-tab1 <- as.tibble(colSums(is.na(titanic)))
+tab1 <- colSums(is.na(titanic))
 tab2 <- count(titanic, pclass, cabinFirstLetter)
 tab3 <- count(titanic %>% filter(pclass == 1), pclass, cabinFirstLetter, survived)
 
@@ -206,6 +206,8 @@ nullDev <- round(summary(glmFit)$null.deviance, 2)
 resDev <- round(summary(glmFit)$deviance, 2) 
 nullDf <- summary(glmFit)$df.null
 resDf <- summary(glmFit)$df.residual
+
+maxPval <- signif(max(summary(glmFit)$coefficients[, 4]), 3)
 # pchisq(nullDev - resDev, df = nullDf- resDf, lower.tail = F)
 
 ROClogreg <- prediction(predLogreg, tstNomis)
@@ -218,9 +220,11 @@ accurROCLogreg <- round(perfROCLogreg@y.values[[1]], 2)
 
 ### Logistic regression
 
-The logistic regression can be directly applied for classification because the model contains only 2 outcomes. The optimal model obtained below contains `r length(varSet)` predictors: `r varSet`. The overall ratio of the testing correct prediction obtained from this method is `r tstAccur`, whereas the corresponding ratio of the training prediction is `r trAccur`. If such ratio of the training set is much higher than one for the testing set, it could indicate to overfitting. However, in our case the ratio of the testing correct prediction is even higher.
+The logistic regression can be directly applied for classification because the model contains only 2 outcomes. The optimal model obtained below contains `r length(varSet)` predictors: `r varSet`. The model has a good fit: all variables are significant; the maximum of their p-values is `r maxPval`.
 
-Two values indicating the fit quality of logistic regression are the null deviance corresponding to the model without predictors (the worse model) and the residual deviance corresponding to the model outlined above. Higher difference between these values (the first one is always larger due to presence of predictors) shows better fit. 
+The overall ratio of the testing correct prediction obtained from this method is `r tstAccur`, whereas the corresponding ratio of the training prediction is `r trAccur`. If such ratio of the training set was much higher than one for the testing set, it could indicate to overfitting. However, in our case the ratio of the testing correct prediction was even higher.
+
+Accuracy which is the overall ratio of correct predictions (for both outcome classes) is the main indicator of the quality of classification. However, misclassification consists of two types of errors. Even in the simplest scenario when both of the errors are treated equally, values of each error are also indicate the prediction quality, especially when data is imbalanced. For a model with only two outcome classes, a receiver operating characteristic curve (ROC) provides description of correct classification of each outcome class. ROC is a plot of the true positive rate (TPR) against the false positive rate (FPR) for different thresholds. The area describing the quality of prediction is above the line TPR = FPR. The point (0, 1) is an asymptotic best point, and the area under the asymptotically best curve is equal to 1.
 
 The next plot shows the ROC curve for the random forest predictor. The area under curve is `r accurROCLogreg`.
 
@@ -230,3 +234,39 @@ plot(perfROCplotLogreg)
 abline(a = 0, b = 1)
 
 ```
+
+``` {r Lasso ridge, echo = FALSE}
+
+dummycols <- c("pclass", "sex", "embarked")
+rowsNA <- rowSums(is.na(titanic))
+titanicNoCat <- titanic %>% dplyr::select(-pclassCab) %>% filter(rowsNA == 0) %>% 
+  dummy_cols(select_columns = dummycols, remove_first_dummy = TRUE) %>% 
+  dplyr::select(-dummycols)
+
+set.seed(127)
+trRowsL <- createDataPartition(titanicNoCat$survived, p = 0.8, list = F)
+trDataL <- titanicNoCat[trRowsL, ]
+tstDataL <- titanicNoCat[-trRowsL, ]
+
+x <- model.matrix(survived ~., trDataL)
+y <- as.integer(trDataL$survived)
+cv.out <- cv.glmnet(x, y, alpha=1, family = "binomial", type.measure = "deviance")
+lambdaBest <- cv.out$lambda.1se
+
+coefLasso <- coef(cv.out, s = "lambda.1se")
+
+xTest <- model.matrix(survived ~., tstDataL)
+predLasso <- predict(cv.out, newx = xTest, s = "lambda.1se", type = "response")
+predLasso <- ifelse(predLasso > 0.5, 1, 0)
+confTabLasso <- table(predLasso, as.integer(tstDataL$survived))
+
+tstAccurL <- round(sum(diag(confTabLasso)) / sum(confTabLasso), 2)
+
+```
+
+### Alternative analysis: shrinkage methods
+
+These methods shrink some of the regression coefficients towards zero. They add small bias to the model and minimize slightly different functions. The resulted models may have lower variance. The main srinkage methods are lasso and ridge regression. In this report I applied the lasso regression due to more strict shrinkage. I applied this method to the full model and compared the obtained accuracy with the accuracy obtained above. This method does not accept categorical variables. Thus, I converted each of them to k - 1 independent binary columns where k is the number of levels in the corresponding categorical variable. Also, all rows with at least one missing value had to be removed. The accuracy of the lasso regression is `r tstAccurL` which is better than the previous result. 
+
+
+
