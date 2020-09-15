@@ -180,7 +180,7 @@ summary {
 
 <h1 class="title toc-ignore">Classification of titanic data</h1>
 <h4 class="author">Vladislav Brion</h4>
-<h4 class="date">13 September, 2020</h4>
+<h4 class="date">14 September, 2020</h4>
 
 </div>
 
@@ -671,7 +671,7 @@ NA
 </tr>
 </tbody>
 </table>
-<p>The pclass = 1 can be split onto 2 levels: one belonging to the cabin values equal to B, C, D and E (where the number of survived persons is much higher than the number of non-survived persons), and another one belonging to the missing cabin values, E and T (where the counts of both survived groups are close each other). In addition to the pclass predictor, I added the modified cabinFirstLetter variable to the possible list of predictors. At least one of them is expected be removed at stepwise step.</p>
+<p>The pclass = 1 can be split onto 2 levels: one belonging to the cabin values equal to B, C, D and E (where the number of survived persons is much higher than the number of non-survived persons), and another one belonging to the missing cabin values, E and T (where the counts of both survived groups are close each other). In addition to the pclass predictor, I added the modified cabinFirstLetter variable to the possible list of predictors. At least one of them is expected to be removed at stepwise run.</p>
 <p>The fare variable contains 17 zero records which were considered as incorrect and one missing record. I imputed them using the average fare for corresponding pclass. Also, logarithmic transformation was applied to the fare variable. This transformation could not affect on tree methods, but could improve the logistic regression.</p>
 <p>The age variable contains 263 missing records. It is relatively large number, and imputation of these missing values were not part of this report. The following two models can be considered:</p>
 <ol style="list-style-type: decimal">
@@ -681,9 +681,137 @@ NA
 <p>I started my analysis from the first model which is more general. As for other predictors, keeping the age predictor will be analysed during finding the best set of predictors for logistic regression.</p>
 <p>Two missing embarkedvalues records won’t impact on the model.</p>
 <p>The numerical predictors aren’t highly correlated. Their maximum pairwise correlation coefficient is 0.37. However, multicollinearity in the model can exist.</p>
-<p>For logistic regression, the transformation log(x + 1) was applied to the sibsp and parch variables. In order to find the optimal set of predictors and reduce possible overfitting, I used the stepwise logistic regtression. Due to low number of possible predictors, the full model run very fast, and the backward approach was selected. Starting from the full model, I reduced each single predictor and select the current best model based on an information criteria.</p>
+<p>For logistic regression, the transformation log(x + 1) was applied to the fare variable. In order to find the optimal set of predictors and reduce possible overfitting, I used the stepwise logistic regtression. Due to low number of possible predictors, the full model run very fast, and the backward approach was selected. Starting from the full model, I reduced each single predictor and select the current best model based on an information criteria.</p>
 <p>Coefficients of the logistic regression correspond to maximum vlaue of likelihood function. Then, a low value of residual deviance which is proportional to negative log-likelihood value corresponds to a good fit. However, adding more predictors will always improve a fit. Then, larger number of predictors should be penalized. The Akaike information criteria (AIC) is the sum of the residual deviance and the double number of predictors. As a result, adding predictors which do not significantly improve the fit can make the model worse. For a single iteration of the backward stepwise regression, a predictor is selected to be removed when the corresponding model has the lowest AIC value. The itertation process of removing a single variable continues until the full model at current iteration is the best. In other words, further omitting of any predictor increases the AIC.</p>
 <p>As a result, the model with full set of predictors having AIC = 974.5 was improved by reduced model with 5 predictors: sibsp, embarked, pclass, age, sex having AIC = 970.9. The age predictor remained in the model. Then, the best model contains the age predictor and has reduced number of observations. Also, the artificial cabinFirstLetter predictor was omitted.</p>
+</div>
+<div id="logistic-regression-significance" class="section level3">
+<h3>Logistic regression significance</h3>
+<p>Similar to the R square value for linear regression, the deviance describes a fit quality of logistic regression. The value of deviance is proportional to the negetive log-likehood value. Lower deviance means good fit.</p>
+<p>I applied anova to evaluate how the fit of the full model is better than the fit of the null mode. The summary is shown below.</p>
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+<caption>
+Comparison of the full and null models
+</caption>
+<thead>
+<tr>
+<th style="text-align:right;">
+Resid. Df
+</th>
+<th style="text-align:right;">
+Resid. Dev
+</th>
+<th style="text-align:right;">
+Df
+</th>
+<th style="text-align:right;">
+Deviance
+</th>
+<th style="text-align:right;">
+Pr(&gt;Chi)
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+1034
+</td>
+<td style="text-align:right;">
+954.1284
+</td>
+<td style="text-align:right;">
+NA
+</td>
+<td style="text-align:right;">
+NA
+</td>
+<td style="text-align:right;">
+NA
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+1043
+</td>
+<td style="text-align:right;">
+1411.0311
+</td>
+<td style="text-align:right;">
+-9
+</td>
+<td style="text-align:right;">
+-456.9027
+</td>
+<td style="text-align:right;">
+0
+</td>
+</tr>
+</tbody>
+</table>
+<p>The deviance of the full model is significantly lower than one for the null model. The p-value is very low. Then, we can reject the corresponding null hypothesis, and conclude that the full model fits the data better compared to the null model.</p>
+<p>Also, I compared the full model and the reduced model obtained by stepwise algorithm:</p>
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+<caption>
+Comparison of the full and reduced models
+</caption>
+<thead>
+<tr>
+<th style="text-align:right;">
+Resid. Df
+</th>
+<th style="text-align:right;">
+Resid. Dev
+</th>
+<th style="text-align:right;">
+Df
+</th>
+<th style="text-align:right;">
+Deviance
+</th>
+<th style="text-align:right;">
+Pr(&gt;Chi)
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+1034
+</td>
+<td style="text-align:right;">
+954.1284
+</td>
+<td style="text-align:right;">
+NA
+</td>
+<td style="text-align:right;">
+NA
+</td>
+<td style="text-align:right;">
+NA
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+1036
+</td>
+<td style="text-align:right;">
+954.9432
+</td>
+<td style="text-align:right;">
+-2
+</td>
+<td style="text-align:right;">
+-0.814777
+</td>
+<td style="text-align:right;">
+0.6653856
+</td>
+</tr>
+</tbody>
+</table>
+<p>The deviances of both of the models are slightly different. Due to large p-value, we can consider that both of the models fit the data with no difference. As it was mentioned above, the reduced model is preferable due to lower number of predictors and AIC.</p>
 </div>
 <div id="classification-methods" class="section level2">
 <h2>Classification methods</h2>
