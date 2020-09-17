@@ -180,7 +180,7 @@ summary {
 
 <h1 class="title toc-ignore">Classification of titanic data</h1>
 <h4 class="author">Vladislav Brion</h4>
-<h4 class="date">14 September, 2020</h4>
+<h4 class="date">16 September, 2020</h4>
 
 </div>
 
@@ -188,12 +188,188 @@ summary {
 <p>This report contains results of applying various supervised learning methods to titanic data. Quality of survival outcome predictions is outlined.</p>
 <div id="the-data" class="section level3">
 <h3>The data</h3>
-<p>The original titanic dataset contains 1309 observations and 9 columns. One record without non-missing values was removed. The survived binary variable (0 - not survived; 61.8% observations, and 1 - survived; 38.2% observations) is used as an outcome for all models, whereas other variables can be considered as candidates for predictors. The name, ticket, boat, body, home.dest variables shouldn’t have impact on the surviving a person, and were permanently removed from the analysis.</p>
-<p>The cabin variable is replaced by cabinFirstLetter variable consisting of the first letter of the cabin. This letter can contain additional information about class or location of a cabin.</p>
-<p>Table 1 shows number of missing values in the dataset.</p>
+<p>The original titanic dataset contains 1309 observations and 9 columns. One record without non-missing values was removed. Description of all original data attributes is show on table 1.</p>
 <table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
 <caption>
-Table 1. Counts of missing values
+Table 1. Attributes of original titanic data
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+Attribute
+</th>
+<th style="text-align:left;">
+Type
+</th>
+<th style="text-align:left;">
+Description
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+pclass
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+Passenger class (1 = 1st; 2 = 2nd; 3 = 3rd)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+survived
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+the passenger survived or not (0 = No; 1 = Yes)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+name
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+title and family names
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+sex
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+male/female
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+age
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+Age, a significant portion of values are missing
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+sibsp
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+Number of siblings/spouses aboard
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+parch
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+Number of parents/children aboard
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+ticket
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+Ticket number
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+fare
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+Passenger fare (British Pound)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+cabin
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+Location of the cabin
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+embarked
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+Port of embarkation (C = Cherbourg; Q = Queenstown; S = Southampton)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+boat
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+Lifeboat (if survived)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+body
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+Body number (if did not survive and body was recovered)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+home.dest
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+Home/destination
+</td>
+</tr>
+</tbody>
+</table>
+<p>The survived binary variable (0 - not survived; 61.8% observations, and 1 - survived; 38.2% observations) is used as an outcome for all models, whereas other variables can be considered as candidates for predictors. The boat and body variables depend on surviving and could not be considered as predictors. The ticket variable contains digits and possible letters. Without meaning of its cotnent this variable could not be considered as possible predictor. I found a pattern that persons within one family had the same ticket number. It could be useful if a family as a group of people was introduced into the model. Also, grouping people into their families could help to imputation missing age and updating incorrect values of the number of siblings/spouses, as well as the number of parents/children (if these numbers are incorrect). However, this analysis was out of this report, and, as a result, the ticket variable was removed.</p>
+<p>The name variable having a pattern that “Master” corresponds to a male child, could be used for imputation of missing age records. The home.dest variable containing a city and country/state name could provide information about person’s wealth which could be an additional factor of surviving. However, there are approximately 332 cities, and criteria of their grouping is unknown. Both of the variables will probably be analysed in the further reports. Currently, they were removed from the model.</p>
+<p>The cabin variable is replaced by cabinFirstLetter variable consisting of the first letter of the cabin. This letter can contain additional information about class or location of a cabin.</p>
+<p>Table 2 shows number of missing values in the dataset.</p>
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+<caption>
+Table 2. Counts of missing values
 </caption>
 <thead>
 <tr>
@@ -282,7 +458,7 @@ cabinFirstLetter
 <p>The cabinFirstLetter variable has 1014 missig records. This number is large, and this variable can’t be efficiently used without imputation. This variable can be used together with the pclass variable, as shown on the table below.</p>
 <table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
 <caption>
-Table 2. Counts of pclass and cabin factors
+Table 3. Counts of pclass and cabin factors
 </caption>
 <thead>
 <tr>
@@ -465,10 +641,10 @@ NA
 </tr>
 </tbody>
 </table>
-<p>This variable can’t be used for splitting levels pclass = 2 or 3 due to majority of its missing values. On the other side, the level pclass = 1 can be possibly split on multiple levels depending on the cabinFirstLetter values. I don’t want to split it onto many levels with non-frequent counts. The split can be performed using thetable below:</p>
+<p>This variable can’t be used for splitting levels pclass = 2 or 3 due to majority of its missing values. On the other side, the level pclass = 1 can be possibly split on multiple levels depending on the cabinFirstLetter values. I don’t want to split it onto many levels with non-frequent counts. The split can be performed using the table below:</p>
 <table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
 <caption>
-Table 3. Counts of pclass = 1, cabin and survived factors
+Table 4. Counts of pclass = 1, cabin and survived factors
 </caption>
 <thead>
 <tr>
@@ -672,7 +848,7 @@ NA
 </tbody>
 </table>
 <p>The pclass = 1 can be split onto 2 levels: one belonging to the cabin values equal to B, C, D and E (where the number of survived persons is much higher than the number of non-survived persons), and another one belonging to the missing cabin values, E and T (where the counts of both survived groups are close each other). In addition to the pclass predictor, I added the modified cabinFirstLetter variable to the possible list of predictors. At least one of them is expected to be removed at stepwise run.</p>
-<p>The fare variable contains 17 zero records which were considered as incorrect and one missing record. I imputed them using the average fare for corresponding pclass. Also, logarithmic transformation was applied to the fare variable. This transformation could not affect on tree methods, but could improve the logistic regression.</p>
+<p>The fare variable contains 17 zero records which were considered as incorrect and one missing record. I imputed them using the median fare for the corresponding pclass. Also, logarithmic transformation was applied to the fare variable due to its skewed distribution. This transformation could not affect on tree methods, but could improve the logistic regression.</p>
 <p>The age variable contains 263 missing records. It is relatively large number, and imputation of these missing values were not part of this report. The following two models can be considered:</p>
 <ol style="list-style-type: decimal">
 <li><p>Model containing the age variable. Some models won’t consider the missing records, that cause to lower number of observations, and, as a result, reduced quality of the analysis.</p></li>
@@ -681,9 +857,9 @@ NA
 <p>I started my analysis from the first model which is more general. As for other predictors, keeping the age predictor will be analysed during finding the best set of predictors for logistic regression.</p>
 <p>Two missing embarkedvalues records won’t impact on the model.</p>
 <p>The numerical predictors aren’t highly correlated. Their maximum pairwise correlation coefficient is 0.37. However, multicollinearity in the model can exist.</p>
-<p>For logistic regression, the transformation log(x + 1) was applied to the fare variable. In order to find the optimal set of predictors and reduce possible overfitting, I used the stepwise logistic regtression. Due to low number of possible predictors, the full model run very fast, and the backward approach was selected. Starting from the full model, I reduced each single predictor and select the current best model based on an information criteria.</p>
+<p>In order to find the optimal set of predictors and reduce possible overfitting, I used the stepwise logistic regtression. Due to low number of possible predictors, the full model run very fast, and the backward approach was selected. Starting from the full model, I reduced each single predictor and select the current best model based on an information criteria.</p>
 <p>Coefficients of the logistic regression correspond to maximum vlaue of likelihood function. Then, a low value of residual deviance which is proportional to negative log-likelihood value corresponds to a good fit. However, adding more predictors will always improve a fit. Then, larger number of predictors should be penalized. The Akaike information criteria (AIC) is the sum of the residual deviance and the double number of predictors. As a result, adding predictors which do not significantly improve the fit can make the model worse. For a single iteration of the backward stepwise regression, a predictor is selected to be removed when the corresponding model has the lowest AIC value. The itertation process of removing a single variable continues until the full model at current iteration is the best. In other words, further omitting of any predictor increases the AIC.</p>
-<p>As a result, the model with full set of predictors having AIC = 974.5 was improved by reduced model with 5 predictors: sibsp, embarked, pclass, age, sex having AIC = 970.9. The age predictor remained in the model. Then, the best model contains the age predictor and has reduced number of observations. Also, the artificial cabinFirstLetter predictor was omitted.</p>
+<p>As a result, the model with full set of predictors having AIC = 974.4 was improved by reduced model with 5 predictors: sibsp, embarked, pclass, age, sex having AIC = 970.9. The age predictor remained in the model. Then, the best model contains the age predictor and has reduced number of observations. Also, the artificial cabinFirstLetter predictor was not included into the reduced model.</p>
 </div>
 <div id="logistic-regression-significance" class="section level3">
 <h3>Logistic regression significance</h3>
@@ -718,7 +894,7 @@ Pr(&gt;Chi)
 1034
 </td>
 <td style="text-align:right;">
-954.1284
+954.1247
 </td>
 <td style="text-align:right;">
 NA
@@ -741,7 +917,7 @@ NA
 -9
 </td>
 <td style="text-align:right;">
--456.9027
+-456.9065
 </td>
 <td style="text-align:right;">
 0
@@ -780,7 +956,7 @@ Pr(&gt;Chi)
 1034
 </td>
 <td style="text-align:right;">
-954.1284
+954.1247
 </td>
 <td style="text-align:right;">
 NA
@@ -797,16 +973,16 @@ NA
 1036
 </td>
 <td style="text-align:right;">
-954.9432
+954.9462
 </td>
 <td style="text-align:right;">
 -2
 </td>
 <td style="text-align:right;">
--0.814777
+-0.8214988
 </td>
 <td style="text-align:right;">
-0.6653856
+0.6631531
 </td>
 </tr>
 </tbody>
@@ -823,11 +999,11 @@ NA
 <p>For applying each classification method, the dataset was randomly split on training set (80% of observations) which was used for creating a predictor, and on testing set (20% of observations) which was used for quality evaluation of the predictor. The predictors were applied on the testing set, and the predicted outcomes were compared with actual outcomes in this set. The result can depend on split onto the training and testing set. I created 20 different splits onto two sets in order to produce summary of predictor quality based on multiple splits.</p>
 <div id="logistic-regression" class="section level3">
 <h3>Logistic regression</h3>
-<p>The logistic regression can be directly applied for classification because the model contains only 2 outcomes. The optimal model obtained below contains 5 predictors: sibsp, embarked, pclass, age, sex. The model has a good fit: all variables are significant; the maximum of their p-values is 0.00553.</p>
+<p>The logistic regression can be directly applied for classification because the model contains only 2 outcomes. The optimal model obtained below contains 5 predictors: sibsp, embarked, pclass, age, sex. The model has a good fit: all variables are significant; the maximum of their p-values is 0.00551.</p>
 <p>Summary of the values describing quality of prediction is shown on table below.</p>
 <table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
 <caption>
-Table 4. Quality of logistic regression predictor
+Table 5. Quality of logistic regression predictor
 </caption>
 <thead>
 <tr>
@@ -876,7 +1052,7 @@ tstAccur
 0.78
 </td>
 <td style="text-align:right;">
-0.025
+0.024
 </td>
 <td style="text-align:right;">
 0.82
@@ -884,7 +1060,7 @@ tstAccur
 </tr>
 <tr>
 <td style="text-align:left;">
-accurROCLogreg
+AUCLogreg
 </td>
 <td style="text-align:right;">
 0.71
@@ -902,17 +1078,17 @@ accurROCLogreg
 </tbody>
 </table>
 <p>As it was expected, accuracy of prediction for the training set has lower variability than one for the testing set. however, both of the standard deviations are low. Average accuracies for the training and testing sets are not significantly different that indicate to abcense of overfitting for this model. The overall ratio of the testing correct prediction is 0.78.</p>
-<p>Accuracy which is the overall ratio of correct predictions (for both outcome classes) is the main indicator of the quality of classification. However, misclassification consists of two types of errors. Even in the simplest scenario when both of the errors are treated equally, values of each error are also indicate the prediction quality, especially when data is imbalanced. For a model with only two outcome classes, a receiver operating characteristic curve (ROC) provides description of correct classification of each outcome class. ROC is a plot of the true positive rate (TPR) against the false positive rate (FPR) for different thresholds. The area describing the quality of prediction is above the line TPR = FPR. The point (0, 1) is an asymptotic best point, and the area under the asymptotically best curve is equal to 1.</p>
-<p>The next plot shows the ROC curve for the random forest predictor. The area under curve is 0.77.</p>
+<p>Accuracy which is the overall ratio of correct predictions (for both outcome classes) is the main indicator of the quality of classification. However, misclassification consists of two types of errors. Even in the simplest scenario when both of the errors are treated equally, values of each error are also indicate the prediction quality, especially when data is imbalanced. For a model with only two outcome classes, a receiver operating characteristic curve (ROC) provides description of correct classification of each outcome class. ROC is a plot of the true positive rate (TPR) against the false positive rate (FPR) for different thresholds. The area under the curve (AUC) describes the quality of prediction. The point (0, 1) is an asymptotic best point, and the AUC for the asymptotically best curve is equal to 1.</p>
+<p>The next plot shows the ROC curve for the logistic regression predictor. The AUC is 0.77.</p>
 <p><img src="data:image/png;base64,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" width="672" /></p>
 </div>
 <div id="alternative-analysis-shrinkage-methods" class="section level3">
 <h3>Alternative analysis: shrinkage methods</h3>
 <p>These methods shrink some of the regression coefficients towards zero. They add small bias to the model and minimize slightly different functions. The resulted models may have lower variance. The main srinkage methods are lasso and ridge regression. The lasso has to more strict shrinkage. I applied both of these methods as well as a mixed model. These methods do not accept categorical variables. Thus, I converted each of them to k - 1 independent binary columns where k is the number of levels in the corresponding categorical variable. Also, all rows with at least one missing value had to be removed. I considered two data sets: with age predictor and without it, as it was explained above.</p>
-<p>Summary of the values describing quality of prediction (testing set) of the shrinkage methods is shown on table below. The case alpha = 0 corresponds to ridge regression, whereas alpha = 1 corresponds to lasso regression, and alpha = 0.5 belongs to a mixed model.</p>
+<p>Summary of the values describing quality of prediction (testing set) of the shrinkage methods is shown on table below. The case alpha = 0 corresponds to ridge regression, whereas alpha = 1 corresponds to lasso regression, and alpha = 0.5 belongs to elastic net.</p>
 <table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
 <caption>
-Table 5. Quality of predictors based on shrinkage methods
+Table 6. Quality of predictors based on shrinkage methods
 </caption>
 <thead>
 <tr>
@@ -944,10 +1120,10 @@ Age Alpha0
 0.80
 </td>
 <td style="text-align:right;">
-0.029
+0.028
 </td>
 <td style="text-align:right;">
-0.85
+0.84
 </td>
 </tr>
 <tr>
